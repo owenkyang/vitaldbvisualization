@@ -26,3 +26,23 @@
     box-shadow: 3px 3px 8px rgba(0,0,0,0.3); /* slightly stronger shadow */
     pointer-events: none;
   }
+  body {
+    font-family: sans-serif;
+    /* Let the page flow horizontally to put the dropdown on the right */
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    margin: 20px;
+  }
+  #graph {
+    /* The chart container */
+    margin-right: 40px; /* some gap before the dropdown */
+  }
+  #controls {
+    /* The container for the dropdown on the right */
+    display: flex;
+    flex-direction: column;
+  }
+  #controls label {
+    font-weight: bold;
+  }
