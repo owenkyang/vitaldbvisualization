@@ -2,7 +2,6 @@ var margin = { top: 60, right: 30, bottom: 60, left: 150 },
     width  = 1200 - margin.left - margin.right,
     height = 900  - margin.top  - margin.bottom;
 
-// Main SVG
 var svg = d3.select("#graph")
   .append("svg")
     .attr("width",  width  + margin.left + margin.right)
@@ -11,7 +10,7 @@ var svg = d3.select("#graph")
     .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
 var tooltip = d3.select("#tooltip");
-var fullData = null; // store all data
+var fullData = null;
 
 // Y-scale (constant domain) + axis
 var y = d3.scalePoint().range([0, height]).padding(0.5);
@@ -22,7 +21,7 @@ var x = d3.scaleLog().range([0, width]);
 var xAxisG = svg.append("g")
   .attr("transform", `translate(0, ${height})`);
 
-// Kernel Density Estimation
+// KDE
 function kernelDensityEstimator(kernel, X) {
   return function(V) {
     return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
@@ -31,15 +30,15 @@ function kernelDensityEstimator(kernel, X) {
 function kernelEpanechnikov(k) {
   return function(v) {
     v /= k;
-    return Math.abs(v) <= 1 ? 0.75 * (1 - v*v) / k : 0;
+    return Math.abs(v) <= 1 ? 0.75*(1 - v*v)/k : 0;
   };
 }
 var kde = kernelDensityEstimator(kernelEpanechnikov(40), []);
 
-// Helpers
+// Stats helpers
 function standardDeviation(values) {
   let mean = d3.mean(values);
-  let variance = d3.mean(values.map(v => (v - mean) ** 2));
+  let variance = d3.mean(values.map(v => (v - mean)**2));
   return Math.sqrt(variance);
 }
 function mostFrequentSex(rows) {
@@ -54,9 +53,14 @@ function mostFrequentSex(rows) {
   return maxSex || "Unknown";
 }
 
-// --------------------------------------------------
-// 1) Load data
-// --------------------------------------------------
+// 1) Age categorization
+function categorizeAge(age) {
+  if (age < 40) return "Young";
+  else if (age < 60) return "Middle-aged";
+  else return "Old";
+}
+
+// Load data
 d3.csv("cases.csv").then(function(data) {
   // Filter & parse
   fullData = data
@@ -80,7 +84,7 @@ d3.csv("cases.csv").then(function(data) {
   y.domain(allOpTypes);
   yAxisG.call(d3.axisLeft(y));
 
-  // Add axis labels & title (only once)
+  // Add axis labels & title
   svg.append("text")
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
@@ -101,39 +105,43 @@ d3.csv("cases.csv").then(function(data) {
     .style("font-size", "18px")
     .text("How much blood can you expect to lose with each surgery?");
 
-  // Default filter: "Both"
-  updateChart("Both");
+  // By default, show sex=Both, age=All
+  updateChart("Both", "All");
 });
 
-// --------------------------------------------------
-// 2) updateChart(sexFilter)
-// --------------------------------------------------
-function updateChart(sexFilter) {
-  // Filter data by sex
+// 2) updateChart with sexFilter + ageFilter
+function updateChart(sexFilter, ageFilter) {
+  // 2a) Filter data by sex
   let filteredData = (sexFilter === "Both")
     ? fullData
     : fullData.filter(d => d.sex === sexFilter);
 
-  // Clip domain for EBL [1..95th percentile]
+  // 2b) Filter data by age category
+  if (ageFilter !== "All") {
+    filteredData = filteredData.filter(d => categorizeAge(d.age) === ageFilter);
+  }
+
+  // 2c) Clip domain for EBL [1..95th percentile]
   let eblValues = filteredData.map(d => d.intraop_ebl).sort(d3.ascending);
   let ebl95 = d3.quantile(eblValues, 0.95);
   filteredData = filteredData.filter(d => d.intraop_ebl >= 1 && d.intraop_ebl <= ebl95);
 
-  // X domain
+  // 2d) Recalc x domain
   x.domain([1, ebl95 || 1]);
   let customTicks = [1, 5, 10, 50, 100, 500, 1000, 5000].filter(t => t <= ebl95);
   let xAxis = d3.axisBottom(x).tickValues(customTicks).tickFormat(d3.format("~s"));
   xAxisG.call(xAxis);
 
-  // Compute stats
+  // 2e) Compute distributions
   let kdEstimator = kernelDensityEstimator(kernelEpanechnikov(40), x.ticks(50));
   let allOpTypes = y.domain(); // same surgeries as the full domain
 
+  // For each surgery type, build the density if we have data
   let allDensity = allOpTypes.map(opType => {
     let rows = filteredData.filter(d => d.op_type === opType);
-    let ebls = rows.map(d => d.intraop_ebl);
-    if (!ebls.length) return null;
+    if (!rows.length) return null;
 
+    let ebls = rows.map(d => d.intraop_ebl);
     let medianEBL = d3.median(ebls);
     let stdEBL    = standardDeviation(ebls);
     let avgAge    = d3.mean(rows, d => d.age);
@@ -151,14 +159,10 @@ function updateChart(sexFilter) {
     };
   }).filter(d => d !== null);
 
-  // Remove old violins
+  // 2f) Remove old violins
   svg.selectAll(".violins").remove();
 
-  // ----------------------------------------
-  // ANIMATION: define two lines:
-  // zeroLine => y = 0 for all points (flat)
-  // finalLine => y = -pt[1]*8000 (actual shape)
-  // ----------------------------------------
+  // 2g) Animation lines
   let zeroLine = d3.line()
     .curve(d3.curveBasis)
     .x(pt => x(pt[0]))
@@ -169,21 +173,18 @@ function updateChart(sexFilter) {
     .x(pt => x(pt[0]))
     .y(pt => -pt[1] * 8000);
 
-  // Draw new violins
-  let newViolins = svg.selectAll(".violins")
+  // 2h) Draw new violins
+  svg.selectAll(".violins")
     .data(allDensity, d => d.key)
     .enter()
     .append("path")
       .attr("class", "violins")
-      // Place each violin at correct y
       .attr("transform", d => `translate(0, ${y(d.key)})`)
-      // Sort the density points so we don't loop
       .each(function(d) {
         d.density = d.density.sort((a,b) => a[0] - b[0]);
       })
-      // Start at zeroLine
+      // start at zero line
       .attr("d", d => zeroLine(d.density))
-      // Mouse events for tooltip
       .on("mouseover", function(event, d) {
         let lines = [
           `<strong>${d.key}</strong>`,
@@ -206,17 +207,19 @@ function updateChart(sexFilter) {
       .on("mouseleave", function() {
         tooltip.style("opacity", 0);
       })
-      // Now animate to finalLine
+      // animate to final shape
       .transition()
       .duration(1000)
       .ease(d3.easeCubicOut)
       .attr("d", d => finalLine(d.density));
 }
 
-// --------------------------------------------------
-// 3) Handle dropdown change
-// --------------------------------------------------
-d3.select("#sexSelect").on("change", function() {
-  let selected = d3.select(this).property("value");
-  updateChart(selected);
-});
+// 3) Listen to both dropdown changes
+document.getElementById("sexSelect").addEventListener("change", applyFilters);
+document.getElementById("ageSelect").addEventListener("change", applyFilters);
+
+function applyFilters() {
+  let sexFilter = d3.select("#sexSelect").property("value");
+  let ageFilter = d3.select("#ageSelect").property("value");
+  updateChart(sexFilter, ageFilter);
+}
