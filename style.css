@@ -12,12 +12,17 @@
     cursor: pointer;  /* optional: show pointer cursor */
   }
   .tooltip {
-    position: absolute;          /* so we can position it anywhere */
-    visibility: hidden;          /* hidden by default */
-    background: white;           /* white background */
-    border: 1px solid #ccc;      /* light border */
-    border-radius: 4px;
-    padding: 6px;
-    font-size: 12px;
-    pointer-events: none;        /* so it doesn't block mouse events */
+    position: absolute;
+    /* Start invisible: */
+    opacity: 0;  
+    /* Animate changes in opacity: */
+    transition: opacity 0.3s ease;
+
+    background: white;           
+    border: 1px solid #ccc;      
+    border-radius: 6px;            /* slightly larger radius for a "bigger" feel */
+    padding: 12px;                 /* bigger padding */
+    font-size: 16px;               /* bigger font size */
+    box-shadow: 3px 3px 8px rgba(0,0,0,0.3); /* slightly stronger shadow */
+    pointer-events: none;
   }

@@ -1,15 +1,14 @@
-// 1) Chart dimensions
-var margin = {top: 60, right: 30, bottom: 60, left: 150},
+var margin = { top: 60, right: 30, bottom: 60, left: 150 },
     width  = 1200 - margin.left - margin.right,
     height = 800  - margin.top  - margin.bottom;
 
-// 2) Append the main SVG
+// 2) Append main SVG
 var svg = d3.select("#graph")
   .append("svg")
     .attr("width",  width  + margin.left + margin.right)
     .attr("height", height + margin.top  + margin.bottom)
   .append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
+    .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
 // 3) Prepare a tooltip reference
 var tooltip = d3.select("#tooltip");
@@ -17,46 +16,38 @@ var tooltip = d3.select("#tooltip");
 // 4) Load and process data
 d3.csv("cases.csv").then(function(data) {
 
-  // Filter rows (log-scale range 1..ebl95, remove "Others")
+  // (Same data filtering & parsing logic as before) ...
+  // Filter & parse each row
   let processedData = data
     .filter(d =>
-       d.intraop_ebl !== "" &&
-       d.intraop_ebl !== null &&
-       !isNaN(d.intraop_ebl) &&
-       d.optype &&
-       d.optype !== "Others"
+       d.intraop_ebl !== "" && d.intraop_ebl !== null && !isNaN(d.intraop_ebl)
+       && d.optype && d.optype !== "Others"
+       && d.age !== "" && d.age !== null && !isNaN(d.age)
+       && d.sex !== "" && d.sex !== null
     )
     .map(d => ({
-      op_type: d.optype,          
-      intraop_ebl: +d.intraop_ebl
+      op_type:     d.optype,
+      intraop_ebl: +d.intraop_ebl,
+      age:         +d.age,
+      sex:         (d.sex.trim().toUpperCase() === "M" ? "Male" 
+                  : d.sex.trim().toUpperCase() === "F" ? "Female" 
+                  : d.sex.trim())
     }));
 
-  // Compute 95th percentile
   const eblValues = processedData.map(d => d.intraop_ebl).sort(d3.ascending);
   const ebl95 = d3.quantile(eblValues, 0.95);
-
-  // Keep only EBL in [1, ebl95]
   processedData = processedData.filter(d => d.intraop_ebl >= 1 && d.intraop_ebl <= ebl95);
 
-  // Collect unique surgery types
   const opTypes = Array.from(new Set(processedData.map(d => d.op_type)));
 
-  // X: log scale
   var x = d3.scaleLog()
     .domain([1, ebl95])
     .range([0, width]);
-
-  // Custom tick values
   const customTicks = [1, 5, 10, 50, 100, 500, 1000, 5000];
   svg.append("g")
     .attr("transform", `translate(0, ${height})`)
-    .call(
-      d3.axisBottom(x)
-        .tickValues(customTicks)
-        .tickFormat(d3.format("~s"))
-    );
+    .call(d3.axisBottom(x).tickValues(customTicks).tickFormat(d3.format("~s")));
 
-  // Y: point scale for the categories
   var y = d3.scalePoint()
     .domain(opTypes)
     .range([0, height])
@@ -64,84 +55,89 @@ d3.csv("cases.csv").then(function(data) {
 
   svg.append("g").call(d3.axisLeft(y));
 
-  // Helper functions to compute stats
   function standardDeviation(values) {
     let mean = d3.mean(values);
-    let variance = d3.mean(values.map(v => (v - mean)*(v - mean)));
+    let variance = d3.mean(values.map(v => (v - mean) ** 2));
     return Math.sqrt(variance);
   }
 
-  // 5) Kernel Density Estimator
+  function mostFrequentSex(rows) {
+    let counts = d3.rollup(rows, v => v.length, d => d.sex);
+    let maxSex   = null;
+    let maxCount = -Infinity;
+    for (let [sex, count] of counts) {
+      if (count > maxCount) {
+        maxCount = count;
+        maxSex   = sex;
+      }
+    }
+    return maxSex || "Unknown";
+  }
+
   var kde = kernelDensityEstimator(kernelEpanechnikov(40), x.ticks(50));
 
-  // 6) For each surgery type: compute the KDE + stats
   var allDensity = opTypes.map(opType => {
-    let values = processedData
-      .filter(d => d.op_type === opType)
-      .map(d => d.intraop_ebl);
-    if (!values.length) return null;
+    let rows = processedData.filter(d => d.op_type === opType);
+    let ebls = rows.map(d => d.intraop_ebl);
+    if (!ebls.length) return null;
 
-    // Basic stats
-    let medianVal = d3.median(values);
-    let stdVal    = standardDeviation(values);
-    let maxVal    = d3.max(values);
-    let minVal    = d3.min(values);
+    let medianEBL  = d3.median(ebls);
+    let stdEBL     = standardDeviation(ebls);
+    let avgAge     = d3.mean(rows, d => d.age);
+    let modeSex    = mostFrequentSex(rows);
 
     return {
       key: opType,
-      density: kde(values),
+      density: kde(ebls),
       stats: {
-        median: medianVal,
-        std: stdVal,
-        max: maxVal,
-        min: minVal
+        medianEBL,
+        stdEBL,
+        avgAge,
+        modeSex
       }
     };
   }).filter(d => d !== null);
 
-  // 7) Draw violins
-  var violins = svg.selectAll(".violins")
+  // 5) Draw violin shapes
+  svg.selectAll(".violins")
     .data(allDensity)
     .enter()
     .append("path")
       .attr("class", "violins")
       .attr("transform", d => `translate(0, ${y(d.key)})`)
-      // Sort the density array so the line doesn't loop
       .each(function(d) {
         d.density = d.density.sort((a, b) => a[0] - b[0]);
       })
-      // Use the line generator, referencing d.density
       .attr("d", d => d3.line()
-          .curve(d3.curveBasis)
-          .x(pt => x(pt[0]))
-          .y(pt => -pt[1] * 8000)
+        .curve(d3.curveBasis)
+        .x(pt => x(pt[0]))
+        .y(pt => -pt[1] * 8000)
         (d.density)
       )
-      // 8) Add tooltip events
+      // 6) Tooltip events
       .on("mouseover", function(event, d) {
-        // Format your stats in the tooltip
         const html = `
           <strong>${d.key}</strong><br/>
-          Average Bloodloss (Median): ${d3.format(".2f")(d.stats.median)}<br/>
-          Std Dev: ${d3.format(".2f")(d.stats.std)}<br/>
-          Max: ${d.stats.max}<br/>
-          Min: ${d.stats.min}
+          Average Bloodloss (ML): ${d3.format(".2f")(d.stats.medianEBL)}<br/>
+          Standard Deviation: ${d3.format(".2f")(d.stats.stdEBL)}<br/>
+          Average Age (Years): ${d3.format(".1f")(d.stats.avgAge)}<br/>
+          Most Frequent Sex: ${d.stats.modeSex}
         `;
         tooltip
-          .style("visibility", "visible")
+          .style("opacity", 1)   // fade in
           .html(html);
       })
-      .on("mousemove", function(event, d) {
-        // Move tooltip near the mouse
+      .on("mousemove", function(event) {
         tooltip
           .style("top",  (event.pageY + 5) + "px")
           .style("left", (event.pageX + 5) + "px");
       })
-      .on("mouseleave", function(event, d) {
-        tooltip.style("visibility", "hidden");
+      .on("mouseleave", function() {
+        tooltip
+          .style("opacity", 0);  // fade out
       });
 
-  // 9) Axis titles, chart title, etc.
+  // 7) Axis labels & chart title
   svg.append("text")
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
@@ -160,10 +156,10 @@ d3.csv("cases.csv").then(function(data) {
     .attr("x", width / 2)
     .attr("y", -margin.top / 2)
     .style("font-size", "18px")
-    .text("How do different surgery types correlate with blood loss?");
+    .text("How much blood can you expect to lose with each surgery?");
 });
 
-// Kernel Density Estimation helpers
+// KDE Helpers
 function kernelDensityEstimator(kernel, X) {
   return function(V) {
     return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
