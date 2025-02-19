@@ -3,44 +3,44 @@
     stroke: #000;
     stroke-width: 1;
     opacity: 0.7;
-    transition: fill 0.2s;  /* smooth transition on hover */
+    transition: fill 0.2s;  
   }
 
-  /* On hover, turn darker red */
+ 
   .violins:hover {
     fill: darkred;
-    cursor: pointer;  /* optional: show pointer cursor */
+    cursor: pointer; 
   }
   .tooltip {
     position: absolute;
-    /* Start invisible: */
+ 
     opacity: 0;  
-    /* Animate changes in opacity: */
+
     transition: opacity 0.3s ease;
 
     background: white;           
     border: 1px solid #ccc;      
-    border-radius: 6px;            /* slightly larger radius for a "bigger" feel */
-    padding: 12px;                 /* bigger padding */
-    font-size: 16px;               /* bigger font size */
-    box-shadow: 3px 3px 8px rgba(0,0,0,0.3); /* slightly stronger shadow */
+    border-radius: 6px;           
+    padding: 12px;        
+    font-size: 16px;         
+    box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
     pointer-events: none;
   }
   body {
     font-family: sans-serif;
-    /* Let the page flow horizontally to put the dropdown on the right */
+
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     margin: 20px;
   }
   #graph {
-    /* The chart container */
-    margin-right: 80px; /* some gap before the dropdown */
+
+    margin-right: 80px; 
   }
   #controlsWrapper {
     margin: 0 auto;
-    width: 250px; /* or whatever width you like */
+    width: 250px; 
     margin-top: 400px;
   }
   #controls label {
@@ -55,7 +55,7 @@
     box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.3);
     padding: 10px;
     font-size: 14px;
-    /* optional margin-top if you want more space below the filters */
+   
     margin-left: 1300px;
     margin-top: 600px;
   }
