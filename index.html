@@ -9,24 +9,24 @@
 <body>
     <div id="graph"></div>
     <div class="tooltip" id="tooltip"></div>
-    <div id="controls">
+    <div id="controlsWrapper">
         <div>
-        <label for="sexSelect">Filter by Sex:</label>
-        <select id="sexSelect">
-          <option value="Both">Male and Female</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </select>
+          <label for="sexSelect">Filter by Sex: </label>
+          <select id="sexSelect">
+            <option value="Both">Male and Female</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
         </div>
-        <div>
-            <label for="ageSelect">Filter by Age:</label>
-            <select id="ageSelect">
-              <option value="All">All</option>
-              <option value="Young">Young (Age < 40)</option>
-              <option value="Middle-aged">Middle-aged (40 <= Age < 60) </option>
-              <option value="Old">Old (Age >= 60)</option>
-            </select>
-          </div>
+        <div style="margin-top: 10px;">
+          <label for="ageSelect">Filter by Age: </label>
+          <select id="ageSelect">
+            <option value="All">All</option>
+            <option value="Young">Young</option>
+            <option value="Middle-aged">Middle-aged</option>
+            <option value="Old">Old</option>
+          </select>
+        </div>
       </div>
     <script src="main.js" type="module"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>

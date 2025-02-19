@@ -12,16 +12,16 @@ var svg = d3.select("#graph")
 var tooltip = d3.select("#tooltip");
 var fullData = null;
 
-// Y-scale (constant domain) + axis
+// Y-scale + axis
 var y = d3.scalePoint().range([0, height]).padding(0.5);
 var yAxisG = svg.append("g");
 
-// X-scale (recalculated on filter) + axis
+// X-scale + axis
 var x = d3.scaleLog().range([0, width]);
 var xAxisG = svg.append("g")
   .attr("transform", `translate(0, ${height})`);
 
-// KDE
+// Kernel Density Estimation
 function kernelDensityEstimator(kernel, X) {
   return function(V) {
     return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
@@ -52,8 +52,6 @@ function mostFrequentSex(rows) {
   }
   return maxSex || "Unknown";
 }
-
-// 1) Age categorization
 function categorizeAge(age) {
   if (age < 40) return "Young";
   else if (age < 60) return "Middle-aged";
@@ -62,7 +60,6 @@ function categorizeAge(age) {
 
 // Load data
 d3.csv("cases.csv").then(function(data) {
-  // Filter & parse
   fullData = data
     .filter(d =>
       d.intraop_ebl !== "" && d.intraop_ebl !== null && !isNaN(d.intraop_ebl)
@@ -79,69 +76,78 @@ d3.csv("cases.csv").then(function(data) {
            : d.sex.trim()
     }));
 
-  // Y domain (all surgery types). This never changes
+  // Y domain
   const allOpTypes = Array.from(new Set(fullData.map(d => d.op_type)));
   y.domain(allOpTypes);
-  yAxisG.call(d3.axisLeft(y));
+  yAxisG.call(d3.axisLeft(y))
+    // Increase category label size + bold
+    .selectAll("text")
+    .style("font-size", "14px")
+    .style("font-weight", "bold");
 
-  // Add axis labels & title
+  // Axis labels & bold
   svg.append("text")
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
     .attr("y", height + margin.bottom * 0.7)
     .style("font-size", "16px")
+    .style("font-weight", "bold")  // bold x-axis label
     .text("Blood loss (ML)");
 
   svg.append("text")
     .attr("text-anchor", "middle")
     .attr("transform", `translate(${-margin.left*0.7}, ${height/2}) rotate(-90)`)
     .style("font-size", "16px")
+    .style("font-weight", "bold")  // bold y-axis label
     .text("Surgery Type");
 
   svg.append("text")
     .attr("text-anchor", "middle")
+    .style("font-size", "20px")
+    .style("font-weight", "bold")  // bold chart title
     .attr("x", width / 2)
     .attr("y", -margin.top / 2)
-    .style("font-size", "18px")
     .text("How much blood can you expect to lose with each surgery?");
 
-  // By default, show sex=Both, age=All
+  // Default: Both + All
   updateChart("Both", "All");
 });
 
-// 2) updateChart with sexFilter + ageFilter
+// update chart
 function updateChart(sexFilter, ageFilter) {
-  // 2a) Filter data by sex
-  let filteredData = (sexFilter === "Both")
-    ? fullData
+  // Filter
+  let filteredData = (sexFilter === "Both") ? fullData
     : fullData.filter(d => d.sex === sexFilter);
-
-  // 2b) Filter data by age category
   if (ageFilter !== "All") {
     filteredData = filteredData.filter(d => categorizeAge(d.age) === ageFilter);
   }
 
-  // 2c) Clip domain for EBL [1..95th percentile]
+  // Domain [1..95th percentile]
   let eblValues = filteredData.map(d => d.intraop_ebl).sort(d3.ascending);
   let ebl95 = d3.quantile(eblValues, 0.95);
   filteredData = filteredData.filter(d => d.intraop_ebl >= 1 && d.intraop_ebl <= ebl95);
 
-  // 2d) Recalc x domain
   x.domain([1, ebl95 || 1]);
   let customTicks = [1, 5, 10, 50, 100, 500, 1000, 5000].filter(t => t <= ebl95);
-  let xAxis = d3.axisBottom(x).tickValues(customTicks).tickFormat(d3.format("~s"));
-  xAxisG.call(xAxis);
+  let xAxis = d3.axisBottom(x)
+    .tickValues(customTicks)
+    .tickFormat(d3.format("~s"));
 
-  // 2e) Compute distributions
+  // Draw x-axis with bigger bold ticks
+  xAxisG.call(xAxis)
+    .selectAll("text")
+    .style("font-size", "14px")
+    .style("font-weight", "bold");
+
+  // Compute stats
   let kdEstimator = kernelDensityEstimator(kernelEpanechnikov(40), x.ticks(50));
-  let allOpTypes = y.domain(); // same surgeries as the full domain
+  let allOpTypes = y.domain();
 
-  // For each surgery type, build the density if we have data
   let allDensity = allOpTypes.map(opType => {
     let rows = filteredData.filter(d => d.op_type === opType);
-    if (!rows.length) return null;
-
     let ebls = rows.map(d => d.intraop_ebl);
+    if (ebls.length < 2) return null; // skip if < 2 points
+
     let medianEBL = d3.median(ebls);
     let stdEBL    = standardDeviation(ebls);
     let avgAge    = d3.mean(rows, d => d.age);
@@ -150,19 +156,14 @@ function updateChart(sexFilter, ageFilter) {
     return {
       key: opType,
       density: kdEstimator(ebls),
-      stats: {
-        medianEBL,
-        stdEBL,
-        avgAge,
-        modeSex
-      }
+      stats: { medianEBL, stdEBL, avgAge, modeSex }
     };
   }).filter(d => d !== null);
 
-  // 2f) Remove old violins
+  // remove old violins
   svg.selectAll(".violins").remove();
 
-  // 2g) Animation lines
+  // define lines for animation
   let zeroLine = d3.line()
     .curve(d3.curveBasis)
     .x(pt => x(pt[0]))
@@ -173,7 +174,7 @@ function updateChart(sexFilter, ageFilter) {
     .x(pt => x(pt[0]))
     .y(pt => -pt[1] * 8000);
 
-  // 2h) Draw new violins
+  // Draw violins
   svg.selectAll(".violins")
     .data(allDensity, d => d.key)
     .enter()
@@ -183,7 +184,6 @@ function updateChart(sexFilter, ageFilter) {
       .each(function(d) {
         d.density = d.density.sort((a,b) => a[0] - b[0]);
       })
-      // start at zero line
       .attr("d", d => zeroLine(d.density))
       .on("mouseover", function(event, d) {
         let lines = [
@@ -214,9 +214,9 @@ function updateChart(sexFilter, ageFilter) {
       .attr("d", d => finalLine(d.density));
 }
 
-// 3) Listen to both dropdown changes
-document.getElementById("sexSelect").addEventListener("change", applyFilters);
-document.getElementById("ageSelect").addEventListener("change", applyFilters);
+// Listen to both dropdown changes
+document.getElementById("sexSelect").onchange = applyFilters;
+document.getElementById("ageSelect").onchange = applyFilters;
 
 function applyFilters() {
   let sexFilter = d3.select("#sexSelect").property("value");

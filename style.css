@@ -36,12 +36,12 @@
   }
   #graph {
     /* The chart container */
-    margin-right: 40px; /* some gap before the dropdown */
+    margin-right: 80px; /* some gap before the dropdown */
   }
-  #controls {
-    /* The container for the dropdown on the right */
-    display: flex;
-    flex-direction: column;
+  #controlsWrapper {
+    margin: 0 auto;
+    width: 250px; /* or whatever width you like */
+    margin-top: 400px;
   }
   #controls label {
     font-weight: bold;
