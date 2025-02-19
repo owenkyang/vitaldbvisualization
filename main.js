@@ -2,6 +2,7 @@ var margin = { top: 60, right: 30, bottom: 60, left: 150 },
     width  = 1200 - margin.left - margin.right,
     height = 900  - margin.top  - margin.bottom;
 
+// Main SVG
 var svg = d3.select("#graph")
   .append("svg")
     .attr("width",  width  + margin.left + margin.right)
@@ -80,34 +81,46 @@ d3.csv("cases.csv").then(function(data) {
   const allOpTypes = Array.from(new Set(fullData.map(d => d.op_type)));
   y.domain(allOpTypes);
   yAxisG.call(d3.axisLeft(y))
-    // Increase category label size + bold
     .selectAll("text")
     .style("font-size", "14px")
     .style("font-weight", "bold");
 
   // Axis labels & bold
+  // Move the x-axis label further from the axis
   svg.append("text")
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
-    .attr("y", height + margin.bottom * 0.7)
+    .attr("y", height + margin.bottom - 10) // shift it down a bit
     .style("font-size", "16px")
-    .style("font-weight", "bold")  // bold x-axis label
+    .style("font-weight", "bold")
     .text("Blood loss (ML)");
 
+  // Move the y-axis label further from the axis
   svg.append("text")
     .attr("text-anchor", "middle")
-    .attr("transform", `translate(${-margin.left*0.7}, ${height/2}) rotate(-90)`)
+    // shift it left more: - (margin.left + 20) or so
+    .attr("transform", `translate(${-margin.left*0.9}, ${height/2}) rotate(-90)`)
     .style("font-size", "16px")
-    .style("font-weight", "bold")  // bold y-axis label
+    .style("font-weight", "bold")
     .text("Surgery Type");
 
+  // Main title (bold and bigger)
   svg.append("text")
     .attr("text-anchor", "middle")
     .style("font-size", "20px")
-    .style("font-weight", "bold")  // bold chart title
+    .style("font-weight", "bold")
     .attr("x", width / 2)
     .attr("y", -margin.top / 2)
     .text("How much blood can you expect to lose with each surgery?");
+
+  // Subtitle (smaller)
+  svg.append("text")
+    .attr("text-anchor", "middle")
+    .style("font-size", "14px")     // smaller than main title
+    .style("font-weight", "normal") // or "lighter"
+    .attr("x", width / 2)
+    .attr("y", -margin.top / 2 + 20) // place slightly below the main title
+    .text("Data points were ommitted if their blood loss were greater than 1000 ML as the outliers did not represent the distribution");
 
   // Default: Both + All
   updateChart("Both", "All");
@@ -133,7 +146,6 @@ function updateChart(sexFilter, ageFilter) {
     .tickValues(customTicks)
     .tickFormat(d3.format("~s"));
 
-  // Draw x-axis with bigger bold ticks
   xAxisG.call(xAxis)
     .selectAll("text")
     .style("font-size", "14px")
@@ -146,7 +158,7 @@ function updateChart(sexFilter, ageFilter) {
   let allDensity = allOpTypes.map(opType => {
     let rows = filteredData.filter(d => d.op_type === opType);
     let ebls = rows.map(d => d.intraop_ebl);
-    if (ebls.length < 2) return null; // skip if < 2 points
+    if (ebls.length < 2) return null;
 
     let medianEBL = d3.median(ebls);
     let stdEBL    = standardDeviation(ebls);
@@ -163,7 +175,6 @@ function updateChart(sexFilter, ageFilter) {
   // remove old violins
   svg.selectAll(".violins").remove();
 
-  // define lines for animation
   let zeroLine = d3.line()
     .curve(d3.curveBasis)
     .x(pt => x(pt[0]))
@@ -207,14 +218,12 @@ function updateChart(sexFilter, ageFilter) {
       .on("mouseleave", function() {
         tooltip.style("opacity", 0);
       })
-      // animate to final shape
       .transition()
       .duration(1000)
       .ease(d3.easeCubicOut)
       .attr("d", d => finalLine(d.density));
 }
 
-// Listen to both dropdown changes
 document.getElementById("sexSelect").onchange = applyFilters;
 document.getElementById("ageSelect").onchange = applyFilters;
 

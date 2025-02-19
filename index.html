@@ -11,7 +11,7 @@
     <div class="tooltip" id="tooltip"></div>
     <div id="controlsWrapper">
         <div>
-          <label for="sexSelect">Filter by Sex: </label>
+          <label for="sexSelect"><strong>Filter by Sex</strong>: </label>
           <select id="sexSelect">
             <option value="Both">Male and Female</option>
             <option value="Male">Male</option>
@@ -19,7 +19,7 @@
           </select>
         </div>
         <div style="margin-top: 10px;">
-          <label for="ageSelect">Filter by Age: </label>
+          <label for="ageSelect"><Strong>Filter by Age</Strong>: </label>
           <select id="ageSelect">
             <option value="All">All</option>
             <option value="Young">Young</option>
@@ -27,6 +27,16 @@
             <option value="Old">Old</option>
           </select>
         </div>
+      </div>
+      <div id="annotation">
+        <strong>Note:</strong>  
+        Each curve represents the distirbution of blood loss per each surgery category. The peaks of each curve represent the most common amount of blood loss for each surgery category.
+      </div>
+      <div id = "writeup">
+        <h1>Writeup</h1>
+        <p>The motivation for our graph choice was to effectively visualize how blood loss varies across different surgical procedures by using a ridgeline plot. Our aim was to highlight the distribution and density of blood loss for each surgery type while also making it interactive and easy to read for the user. We chose to use a ridgeline plot because it is especially effective when it comes to visualizing the distribution of multiple categories of data. We colored our plot red because it intuitively represents the subject of blood loss. The y-axis shows surgery type. This stacks the individual ridgelines vertically, allowing the distributions to be easily comparable. We chose to make the x-axis increase logarithmically to include the wide distribution of data. While developing our visualization, we performed a few data transformations to maximize the practicality of our plot. We dropped all rows where in-surgical blood loss was missing and filtered out outliers that did not represent the distribution. One interactive technique we chose to implement was a tooltip feature. This gives the viewer access to more information that can’t be gathered just by looking at the distribution. For example, the average blood loss and other demographics of each surgery type. Additionally, we implemented a dropdown menu to allow the viewer to filter the data based on gender and age categories. An alternative idea that we considered was to make a ridgeline plot that showed the blood loss distribution in different BMI categories. Later we opted to use surgery type as our categorical variable because we thought it would provide more useful insights. We also decided to try different interaction techniques to optimize our visualization. One of the techniques we decided to scrap was Brushing due to its ineffectiveness to show hidden patterns from our data. Instead, we used a tooltip to provide more information about our ridgeline plot. The tooltip includes descriptive analysis, allowing the viewer to gain a better understanding of the surgery type. Additionally, we added a drop-down feature which changes the graph based on the person’s age and gender. We believe these features create a personalized experience for each viewer, enhancing the overall interactive experience.
+</p>
+<p>For the development process of our graph, our team began by preparing and cleaning the data, ensuring that missing values were handled properly. Once the data was cleaned, we conducted exploratory data analysis (EDA) to identify patterns in blood loss distribution across different surgery types and blood loss, helping us determine the best way to visualize the data. As a group, each team member participated in the D3.js coding and debugging of the interactive visualization, which took us several days to complete (approximately 32 hours). This process involved writing and refining the code to ensure the visualization functioned smoothly, while maintaining accuracy in representing the data. Every member also contributed to the project write-up. The most time consuming aspect was debugging the interactive features and ensuring the plot accurately represented the data. We ensured that the final graph effectively captured the relationship between blood loss and different surgery types as well as creating an interactive experience for the viewer. </p>
       </div>
     <script src="main.js" type="module"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
