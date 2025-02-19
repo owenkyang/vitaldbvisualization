@@ -1,8 +1,8 @@
 var margin = {top: 60, right: 30, bottom: 40, left: 150},
-    width  = 600 - margin.left - margin.right,
-    height = 500 - margin.top  - margin.bottom;
+    width  = 1200 - margin.left - margin.right, // widened
+    height = 500   - margin.top  - margin.bottom;
 
-// Append the SVG object
+// 2) Append the main SVG
 var svg = d3.select("#graph")
   .append("svg")
     .attr("width",  width  + margin.left + margin.right)
@@ -10,88 +10,93 @@ var svg = d3.select("#graph")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-// Load and process data
+// 3) Load and process data
 d3.csv("cases.csv").then(function(data) {
 
-  // 1) Classify BMI
-  function classifyBMI(bmi) {
-    bmi = +bmi;
-    if      (bmi < 18.5) return "Underweight";
-    else if (bmi < 25)   return "Normal Weight";
-    else if (bmi < 30)   return "Overweight";
-    else if (bmi < 35)   return "Obesity Class 1";
-    else if (bmi < 40)   return "Obesity Class 2";
-    else                 return "Obesity Class 3";
-  }
-
-  // 2) Filter + map your data
+  // Filter rows:
+  //   - EBL is non‐empty and numeric
+  //   - `optype` is defined and not "Other"
   let processedData = data
-    .filter(d => d.intraop_ebl !== "" && d.intraop_ebl !== null && !isNaN(d.intraop_ebl))
+    .filter(d => {
+      // Keep only if:
+      // 1) `intraop_ebl` is valid numeric
+      // 2) `optype` is not "Other" and not empty
+      return d.intraop_ebl !== "" 
+          && d.intraop_ebl !== null 
+          && !isNaN(d.intraop_ebl)
+          && d.optype
+          && d.optype !== "Other";
+    })
     .map(d => ({
-      bmi_category: classifyBMI(d.bmi),
-      intraop_ebl: +d.intraop_ebl
+      op_type: d.optype,          // Each surgery type
+      intraop_ebl: +d.intraop_ebl // Numeric EBL
     }));
 
-  // 3) Identify a cutoff to remove extreme outliers
-  //    Here, we use the 95th percentile
+  // 4) Identify a cutoff to remove extreme outliers (e.g., 95th percentile)
   const eblValues = processedData.map(d => d.intraop_ebl).sort(d3.ascending);
-  const ebl95 = d3.quantile(eblValues, 0.95);
+  const ebl95 = d3.quantile(eblValues, 0.95); // 95th percentile
 
-  // Filter out any EBL above that 95th percentile
+  // Keep only EBL in [1, ebl95] for log scale
   processedData = processedData.filter(d => d.intraop_ebl >= 1 && d.intraop_ebl <= ebl95);
 
-  // 4) Unique BMI categories in the filtered data
-  var categories = Array.from(new Set(processedData.map(d => d.bmi_category)));
+  // 5) Get unique surgery types (optype) for the y‐axis
+  const opTypes = Array.from(new Set(processedData.map(d => d.op_type)));
 
-  // 5) Define a log scale for x, from [1, ebl95]
-  //    (Assuming none of your data is < 1 after filtering)
+  // 6) Define a log scale for x
   var x = d3.scaleLog()
-    .domain([1, ebl95]) 
+    .domain([1, ebl95])
     .range([0, width]);
 
+  // Choose a custom set of tick values
+  const customTicks = [1, 5, 10, 50, 100, 500, 1000, 5000];
+
+  // Draw the bottom axis
   svg.append("g")
-    .attr("transform", "translate(0," + height + ")")
+    .attr("transform", `translate(0, ${height})`)
     .call(
       d3.axisBottom(x)
-        .ticks(6)
-        .tickFormat(d3.format("~s")) // "1k", "10k", etc.
+        .tickValues(customTicks)
+        .tickFormat(d3.format("~s"))  // e.g. "1", "500", "1k"
     );
 
-  // 6) Define y scale for the BMI categories
-  var yName = d3.scaleBand()
-    .domain(categories)
+  // 7) Define y scale for the surgery types
+  var y = d3.scaleBand()
+    .domain(opTypes)
     .range([0, height])
     .padding(0.5);
 
+  // Draw left axis
   svg.append("g")
-    .call(d3.axisLeft(yName));
+    .call(d3.axisLeft(y));
 
-  // 7) Kernel Density Estimation setup
-  //    Adjust bandwidth as needed
-  var kde = kernelDensityEstimator(kernelEpanechnikov(30), x.ticks(50));
+  // 8) Kernel Density Estimation setup
+  //    Feel free to adjust the bandwidth
+  var kde = kernelDensityEstimator(kernelEpanechnikov(35), x.ticks(40));
 
-  // For each category, compute the KDE
-  var allDensity = categories.map(category => {
+  // For each surgery type, compute the KDE
+  var allDensity = opTypes.map(opType => {
+    // Filter data for this opType
     let values = processedData
-      .filter(d => d.bmi_category === category)
+      .filter(d => d.op_type === opType)
       .map(d => d.intraop_ebl);
     if (values.length === 0) return null;
+
     return {
-      key: category,
+      key: opType,
       density: kde(values)
     };
   }).filter(d => d !== null);
 
-  // 8) Draw the KDE "violins"
+  // 9) Draw the violin shapes
   svg.selectAll("areas")
     .data(allDensity)
     .enter()
     .append("path")
-      // Shift each category's shape down to the right y-level
-      .attr("transform", d => 
-        "translate(0," + (yName(d.key) + yName.bandwidth() / 2) + ")"
+      // Shift each type's shape vertically to match its band center
+      .attr("transform", d =>
+        "translate(0," + (y(d.key) + y.bandwidth() / 2) + ")"
       )
-      // Sort the density array by x so the line doesn't fold
+      // Sort the density by x so the line doesn't loop
       .datum(d => d.density.sort((a, b) => a[0] - b[0]))
       .attr("fill", "#69b3a2")
       .attr("stroke", "#000")
@@ -110,7 +115,7 @@ d3.csv("cases.csv").then(function(data) {
   console.log("EBL 95th Percentile:", ebl95);
 });
 
-// Kernel Density Estimation helpers
+// 10) Kernel Density Estimation helpers
 function kernelDensityEstimator(kernel, X) {
   return function(V) {
     return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
