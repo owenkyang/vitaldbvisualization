@@ -11,3 +11,13 @@
     fill: darkred;
     cursor: pointer;  /* optional: show pointer cursor */
   }
+  .tooltip {
+    position: absolute;          /* so we can position it anywhere */
+    visibility: hidden;          /* hidden by default */
+    background: white;           /* white background */
+    border: 1px solid #ccc;      /* light border */
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 12px;
+    pointer-events: none;        /* so it doesn't block mouse events */
+  }
