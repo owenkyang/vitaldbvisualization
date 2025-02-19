@@ -120,7 +120,7 @@ d3.csv("cases.csv").then(function(data) {
     .style("font-weight", "normal") // or "lighter"
     .attr("x", width / 2)
     .attr("y", -margin.top / 2 + 20) // place slightly below the main title
-    .text("Data points were ommitted if their blood loss were greater than 1000 ML as the outliers did not represent the distribution");
+    .text("Data points were omitted if their blood loss were greater than 1000 ML as the outliers did not represent the distribution");
 
   // Default: Both + All
   updateChart("Both", "All");
